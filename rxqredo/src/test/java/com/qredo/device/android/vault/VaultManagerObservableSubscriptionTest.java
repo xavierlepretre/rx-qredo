@@ -68,8 +68,6 @@ public class VaultManagerObservableSubscriptionTest
                 any(VaultCallback.class));
     }
 
-    // TODO test update
-
     @Test
     public void testListHeaders_callsListHeaders() throws Exception
     {

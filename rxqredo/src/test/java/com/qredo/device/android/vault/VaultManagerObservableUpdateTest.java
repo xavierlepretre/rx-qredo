@@ -12,6 +12,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Iterator;
 
+import rx.Observable;
 import rx.functions.Func1;
 
 import static org.fest.assertions.api.Assertions.assertThat;
@@ -19,6 +20,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +34,7 @@ public class VaultManagerObservableUpdateTest
     private VaultItem updated;
     private VaultItemRef updatedRef;
     private Func1 updater;
+    private Func1 updaterAsync;
 
     @Before
     public void setUp() throws Exception
@@ -44,6 +47,8 @@ public class VaultManagerObservableUpdateTest
         updatedRef = VaultItemRefSimpleCreator.mock(null);
         updater = mock(Func1.class);
         when(updater.call(eq(original))).thenReturn(updated);
+        updaterAsync = mock(Func1.class);
+        when(updaterAsync.call(eq(original))).thenReturn(Observable.just(updated));
     }
 
     @NonNull private Answer<Object> passItOnToVaultCallback(
@@ -75,6 +80,18 @@ public class VaultManagerObservableUpdateTest
     }
 
     @Test(timeout = 1000)
+    public void testUpdateAsync_alwaysCallsGet() throws Exception
+    {
+        vaultManagerObservable.updateAsync(originalRef, updaterAsync)
+                .subscribe();
+
+        verify(vaultManager).get(eq(originalRef), any(VaultCallback.class));
+        verify(updater, never()).call(any());
+        verify(vaultManager, never()).put(any(VaultItem.class), any(VaultCallback.class));
+        verify(vaultManager, never()).delete(any(VaultItemRef.class), any(VaultCallback.class));
+    }
+
+    @Test(timeout = 1000)
     public void testUpdate_ifGet_thenCallsUpdaterAndPut() throws Exception
     {
         doAnswer(passItOnToVaultCallback(1, original))
@@ -85,6 +102,21 @@ public class VaultManagerObservableUpdateTest
 
         verify(vaultManager).get(eq(originalRef), any(VaultCallback.class));
         verify(updater).call(eq(original));
+        verify(vaultManager).put(eq(updated), any(VaultCallback.class));
+        verify(vaultManager, never()).delete(any(VaultItemRef.class), any(VaultCallback.class));
+    }
+
+    @Test(timeout = 1000)
+    public void testUpdateAsync_ifGet_thenCallsUpdaterAndPut() throws Exception
+    {
+        doAnswer(passItOnToVaultCallback(1, original))
+                .when(vaultManager)
+                .get(eq(originalRef), any(VaultCallback.class));
+        vaultManagerObservable.updateAsync(originalRef, updaterAsync)
+                .subscribe();
+
+        verify(vaultManager).get(eq(originalRef), any(VaultCallback.class));
+        verify(updaterAsync).call(eq(original));
         verify(vaultManager).put(eq(updated), any(VaultCallback.class));
         verify(vaultManager, never()).delete(any(VaultItemRef.class), any(VaultCallback.class));
     }
@@ -103,6 +135,24 @@ public class VaultManagerObservableUpdateTest
 
         verify(vaultManager).get(eq(originalRef), any(VaultCallback.class));
         verify(updater).call(eq(original));
+        verify(vaultManager).put(eq(updated), any(VaultCallback.class));
+        verify(vaultManager).delete(eq(originalRef), any(VaultCallback.class));
+    }
+
+    @Test(timeout = 1000)
+    public void testUpdateAsync_ifGetAndPut_thenCallsDelete() throws Exception
+    {
+        doAnswer(passItOnToVaultCallback(1, original))
+                .when(vaultManager)
+                .get(eq(originalRef), any(VaultCallback.class));
+        doAnswer(passItOnToVaultCallback(1, updatedRef))
+                .when(vaultManager)
+                .put(eq(updated), any(VaultCallback.class));
+        vaultManagerObservable.updateAsync(originalRef, updaterAsync)
+                .subscribe();
+
+        verify(vaultManager).get(eq(originalRef), any(VaultCallback.class));
+        verify(updaterAsync).call(eq(original));
         verify(vaultManager).put(eq(updated), any(VaultCallback.class));
         verify(vaultManager).delete(eq(originalRef), any(VaultCallback.class));
     }
@@ -133,6 +183,39 @@ public class VaultManagerObservableUpdateTest
                 .when(vaultManager)
                 .delete(any(VaultItemRef.class), any(VaultCallback.class));
         Iterator<VaultItemRef> iterator = vaultManagerObservable.update(originalRef, updater)
+                .toBlocking()
+                .getIterator();
+
+        assertThat(iterator.next()).isSameAs(updatedRef);
+        assertThat(iterator.hasNext()).isFalse();
+    }
+
+    @Test(timeout = 1000)
+    public void testUpdateAsync_receiveUpdatedRef() throws Exception
+    {
+        doAnswer(passItOnToVaultCallback(1, original))
+                .when(vaultManager)
+                .get(eq(originalRef), any(VaultCallback.class));
+        doAnswer(passItOnToVaultCallback(1, updatedRef))
+                .when(vaultManager)
+                .put(eq(updated), any(VaultCallback.class));
+        // Just to make sure we do not receive updatedRef for delete
+        doAnswer(
+                new Answer()
+                {
+                    @Override public Object answer(InvocationOnMock invocation) throws Throwable
+                    {
+                        if (invocation.getArguments()[0] == originalRef)
+                        {
+                            ((VaultCallback) invocation.getArguments()[1]).onSuccess(true);
+                            return true;
+                        }
+                        throw new IllegalArgumentException();
+                    }
+                })
+                .when(vaultManager)
+                .delete(any(VaultItemRef.class), any(VaultCallback.class));
+        Iterator<VaultItemRef> iterator = vaultManagerObservable.updateAsync(originalRef, updaterAsync)
                 .toBlocking()
                 .getIterator();
 

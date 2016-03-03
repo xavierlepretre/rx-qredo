@@ -89,6 +89,15 @@ public class MainActivity extends AppCompatActivity
                 .update(ref, updater);
     }
 
+    private void exampleUpdateAsyncVaultItem(
+            @NonNull QredoClient qredoClient,
+            @NonNull VaultItemRef ref,
+            @NonNull Func1<VaultItem, Observable<VaultItem>> updater)
+    {
+        Observable<VaultItemRef> itemObservable = new VaultManagerObservable(qredoClient.getVaultManager())
+                .updateAsync(ref, updater);
+    }
+
     private void exampleListHeaders(@NonNull QredoClient qredoClient)
     {
         Observable<Set<VaultItemHeader>> headersObservable = new VaultManagerObservable(qredoClient.getVaultManager())

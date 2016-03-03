@@ -99,6 +99,41 @@ public class VaultManagerObservable
                 });
     }
 
+    /**
+     * Convenience method.
+     * @param ref
+     * @param updater
+     * @return
+     */
+    @NonNull public Observable<VaultItemRef> updateAsync(
+            @NonNull final VaultItemRef ref,
+            @NonNull Func1<VaultItem, Observable<VaultItem>> updater)
+    {
+        return get(ref)
+                .flatMap(updater)
+                .flatMap(new Func1<VaultItem, Observable<VaultItemRef>>()
+                {
+                    @Override public Observable<VaultItemRef> call(VaultItem item)
+                    {
+                        return put(item);
+                    }
+                })
+                .flatMap(new Func1<VaultItemRef, Observable<VaultItemRef>>()
+                {
+                    @Override public Observable<VaultItemRef> call(final VaultItemRef newRef)
+                    {
+                        return delete(ref)
+                                .map(new Func1<Boolean, VaultItemRef>()
+                                {
+                                    @Override public VaultItemRef call(Boolean aBoolean)
+                                    {
+                                        return newRef;
+                                    }
+                                });
+                    }
+                });
+    }
+
     @NonNull public Observable<Set<VaultItemHeader>> listHeaders()
     {
         return Observable.create(new OnSubscribe<Set<VaultItemHeader>>()

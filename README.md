@@ -44,6 +44,15 @@ Observable<VaultItemRef> itemObservable = new VaultManagerObservable(qredoClient
 Returns a single `VaultItemRef`, that of the updated `VaultItem`. The previous version has been deleted.
 The `updater` takes in the old version and you need to make it return the new version.
 
+### Update a `VaultItemRef` asynchronously
+```Java
+Func1<VaultItem, Observable<VaultItem>> updater;
+Observable<VaultItemRef> itemObservable = new VaultManagerObservable(qredoClient.getVaultManager())
+    .updateAsync(ref, updater);
+```
+Returns a single `VaultItemRef`, that of the updated `VaultItem`. The previous version has been deleted.
+The `updater` takes in the old version and you need to make it return the new version in an `Observable`.
+
 ### List Item Headers
 ```Java
 Observable<Set<VaultItemHeader>> headersObservable = new VaultManagerObservable(qredoClient.getVaultManager())
